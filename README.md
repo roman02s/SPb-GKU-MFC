@@ -26,13 +26,6 @@ Installation:
     pip install -r requirements.txt
 ------------
 
-Download dataset:
-------------
-    mkdir data
-    cd data
-    <Download dataset>
-------------
-
 
 Project Organization
 ------------
