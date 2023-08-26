@@ -9,6 +9,9 @@ from transformers import AutoTokenizer, AutoModel
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from peft import PeftModel, PeftConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+
 from ru_rag.serve import populate_db, find_similar
 from ru_rag.serve import answer
 
@@ -156,10 +159,114 @@ def predict_new_find_similar(input_data: InputData):
 
 
 
+SAIGA_MODEL_NAME = "IlyaGusev/saiga2_7b_lora"
+SAIGA_BASE_MODEL_PATH = "TheBloke/Llama-2-7B-fp16"
+# BASE_MODEL_PATH = "meta-llama/Llama-2-7b-hf"
+SAIGA_DEFAULT_MESSAGE_TEMPLATE = "<s>{role}\n{content}</s>\n"
+SAIGA_DEFAULT_SYSTEM_PROMPT = "Ты — Сайга, русскоязычный автоматический ассистент. Ты разговариваешь с людьми и помогаешь им."
+
+class Conversation:
+    def __init__(
+        self,
+        message_template=SAIGA_DEFAULT_MESSAGE_TEMPLATE,
+        system_prompt=SAIGA_DEFAULT_SYSTEM_PROMPT,
+        start_token_id=1,
+        bot_token_id=9225
+    ):
+        self.message_template = message_template
+        self.start_token_id = start_token_id
+        self.bot_token_id = bot_token_id
+        self.messages = [{
+            "role": "system",
+            "content": system_prompt
+        }]
+
+    def get_start_token_id(self):
+        return self.start_token_id
+
+    def get_bot_token_id(self):
+        return self.bot_token_id
+
+    def add_user_message(self, message):
+        self.messages.append({
+            "role": "user",
+            "content": message
+        })
+
+    def add_bot_message(self, message):
+        self.messages.append({
+            "role": "bot",
+            "content": message
+        })
+
+    def get_prompt(self, tokenizer):
+        final_text = ""
+        for message in self.messages:
+            message_text = self.message_template.format(**message)
+            final_text += message_text
+        final_text += tokenizer.decode([self.start_token_id, self.bot_token_id])
+        return final_text.strip()
+
+
+def generate(model, tokenizer, prompt, generation_config):
+    data = tokenizer(prompt, return_tensors="pt")
+    data = {k: v.to(model.device) for k, v in data.items()}
+    output_ids = model.generate(
+        **data,
+        generation_config=generation_config
+    )[0]
+    output_ids = output_ids[len(data["input_ids"][0]):]
+    output = tokenizer.decode(output_ids, skip_special_tokens=True)
+    return output.strip()
+
+SAIGA_tokenizer = AutoTokenizer.from_pretrained(SAIGA_MODEL_NAME, use_fast=False)
+
+SAIGA_config = PeftConfig.from_pretrained(SAIGA_MODEL_NAME)
+SAIGA_model = AutoModelForCausalLM.from_pretrained(
+    SAIGA_BASE_MODEL_PATH,
+    load_in_8bit=True,
+    torch_dtype=torch.float16,
+    device_map="from_pretrained",
+    load_in_8bit_fp32_cpu_offload=True,
+)
+SAIGA_model = PeftModel.from_pretrained(
+    SAIGA_model,
+    SAIGA_MODEL_NAME,
+    torch_dtype=torch.float16
+)
+model.eval()
+
+generation_config = GenerationConfig.from_pretrained(SAIGA_MODEL_NAME)
+print(generation_config)
 
 
 
 
+
+
+@app.post("/new_find_similar_saiga", response_model=OutputData)
+def predict_new_find_similar_saiga(input_data: InputData):
+    # Получаем входные параметры
+    client_request = input_data.text
+
+    inp = f"Ответь коротко в одно предложение на запрос: {client_request}"
+    conversation = Conversation()
+    conversation.add_user_message(inp)
+    prompt = conversation.get_prompt(SAIGA_tokenizer)
+
+    output = generate(SAIGA_model, SAIGA_tokenizer, prompt, generation_config)
+
+
+    answer = ""
+    answer += "Вопрос: " + str(client_request)
+    answer += "\t\t"
+    answer += "Ответ: " + str(output)
+    answer += "\n\n"
+
+    # Возвращаем предсказание в виде объекта OutputData
+    return OutputData(prediction=answer)
+
+# 'За месяц, предшествующий месяцу обращения
 
 
 

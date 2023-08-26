@@ -7,3 +7,7 @@ __pycache__
 chromadb
 .chroma
 *.bin
+models/*
+data/*
+.venv
+venv

@@ -35,7 +35,7 @@ st.markdown("Введите запрос выше, чтобы получить �
 if search_button and query:
     # Отправляем запрос к вашей модели для получения результатов
     # Замените URL на адрес вашего эмбединг-сервиса
-    embedding_service_url = "http://51.250.0.86:8001/find_similar"
+    embedding_service_url = f"http://51.250.0.86:8008/new_find_similar"
     payload = {"text": query}
     response = requests.post(embedding_service_url, json=payload)
     if response.status_code == 200:
@@ -50,13 +50,16 @@ if search_button and query:
         # print("results: ", results)
         # print("\n\n\n")
         # print("LEN(RESULTS): ", len(results))
-        for idx, result in enumerate(results[:-1], start=1):
-            # print("="*100)
-            print("result: ", result)
-            question, answer = result.split("\t\t")
-            print("question, answer: ", question, answer)
-            st.write(f"{idx:5}. {question}\n")
-            st.write(f"{' ':6} {answer}")
+        try:
+            for idx, result in enumerate(results[:-1], start=1):
+                # print("="*100)
+                print("result: ", result)
+                question, answer = result.split("\t\t")
+                print("question, answer: ", question, answer)
+                st.write(f"{idx:5}. {question}\n")
+                st.write(f"{' ':6} {answer}")
+        except BaseException as err:
+            print("Error: ", err)
     else:
         st.write("Произошла ошибка при получении результатов")
 # except BaseException as err:
