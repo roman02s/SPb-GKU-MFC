@@ -17,7 +17,7 @@ def get_message_tokens(model: Llama, token: int, content: str) -> List[int]:
 def download_llama_model(repo_id: str, file_name: str) -> Llama:
     snapshot_download(
         repo_id=repo_id,
-        local_dir="",
+        local_dir=".",
         allow_patterns=file_name,
     )
     return Llama(

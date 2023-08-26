@@ -25,14 +25,21 @@ EMBEDDINGS_MODEL = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 MODEL_FILE_NAME = "ggml-model-q4_1.bin"
 MODEL_REPO = "IlyaGusev/saiga_13b_lora_llamacpp"
 
+# model = Llama(
+#     model_path=MODEL_FILE_NAME,
+#     n_ctx=2000,
+#     n_parts=1,
+#     verbose=True,
+# )
+# model = download_llama_model(MODEL_REPO, MODEL_FILE_NAME)
 
 def populate_db() -> None:
     global CHROMADB_DIR, EMBEDDINGS_MODEL
 
-    text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
+    # text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
     raw_docs = []
-    print(text_col_name)
-    data_dir = "../../data/row"
+    # print(text_col_name)
+    data_dir = "/data/row"
     for file_name in os.listdir(data_dir):
         if ".csv" not in file_name:
             continue
@@ -73,15 +80,19 @@ def find_similar(question: str) -> Dict[str, str]:
     docs = __find_similar(question)
     report = "\n\n".join([
         f"{doc.page_content} ({doc.metadata})"
-        for doc in docs
+        for doc in docs[0:2]
     ])
+    report = [
+        (doc.page_content, doc.metadata)
+        for doc in docs[0:2]
+    ]
     print(report)
     return {
         "report": report,
     }
 
 
-def answer(question: str) -> Dict[str, str]:
+def answer(model, question: str) -> Dict[str, str]:
     # if len(sys.argv) == 1:
     #     print("Пожалуйста введите запрос в кавычках")
     #     return {
@@ -95,8 +106,7 @@ def answer(question: str) -> Dict[str, str]:
         return {
             "error": "Пожалуйста введите запрос в кавычках",
         }
-
-    model = download_llama_model(MODEL_REPO, MODEL_FILE_NAME)
+    # model = download_llama_model(MODEL_REPO, MODEL_FILE_NAME)
 
     # set role
     tokens = get_message_tokens(
