@@ -13,14 +13,15 @@ from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
+from langchain.document_loaders import CSVLoader
 
 from ru_rag.custom_csv_loader import CustomCSVLoader
 from ru_rag.token import Token
 from ru_rag.utils import get_message_tokens, download_llama_model
 
-
 CHROMADB_DIR = "chromadb"
-EMBEDDINGS_MODEL = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# EMBEDDINGS_MODEL = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2" #v8 on port 8002
+EMBEDDINGS_MODEL = "intfloat/multilingual-e5-large" # v8-me5 on port 8003
 MODEL_FILE_NAME = "ggml-model-q4_1.bin"
 MODEL_REPO = "IlyaGusev/saiga_13b_lora_llamacpp"
 
@@ -35,28 +36,19 @@ MODEL_REPO = "IlyaGusev/saiga_13b_lora_llamacpp"
 def populate_db() -> None:
     global CHROMADB_DIR, EMBEDDINGS_MODEL
 
-    # text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
-<<<<<<< HEAD
+    text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
     raw_docs = []
-    # print(text_col_name)
-    data_dir = "/data/row"
-=======
-    text_col_name = "text"
-    raw_docs = []
-    data_dir = "../../../data/row/"
->>>>>>> parent of e6b88ca (fix serve.py)
+    print(text_col_name)
+    # data_dir = "/data/row"
+    data_dir = "."
     for file_name in os.listdir(data_dir):
         if ".csv" not in file_name:
             continue
-
         csv_path = os.path.join(data_dir, file_name)
-        loader = CustomCSVLoader(
-            csv_path,
-            text_col_name,
-            csv_args={"delimiter": ",", "quoting": csv.QUOTE_NONE},
-        )
+        loader = CSVLoader(file_path=csv_path)
         raw_docs.extend(loader.load())
-
+    # print(raw_docs[:10])
+    # raw_docs = raw_docs[:10]
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=250,  # min: 50, max: 2000
         chunk_overlap=30,  # min: 0, max: 500,
@@ -88,13 +80,13 @@ def find_similar(question: str) -> Dict[str, str]:
 
     # docs = __find_similar(sys.argv[1])
     docs = __find_similar(question)
-    report = "\n\n".join([
-        f"{doc.page_content} ({doc.metadata})"
-        for doc in docs[0:2]
-    ])
+    # report = "\n\n".join([
+    #     f"{doc.page_content} ({doc.metadata})"
+    #     for doc in docs
+    # ])
     report = [
         (doc.page_content, doc.metadata)
-        for doc in docs[0:2]
+        for doc in docs
     ]
     print(report)
     return {
@@ -102,7 +94,7 @@ def find_similar(question: str) -> Dict[str, str]:
     }
 
 
-def answer(model, question: str) -> Dict[str, str]:
+def answer(question: str) -> Dict[str, str]:
     # if len(sys.argv) == 1:
     #     print("Пожалуйста введите запрос в кавычках")
     #     return {
@@ -116,14 +108,16 @@ def answer(model, question: str) -> Dict[str, str]:
         return {
             "error": "Пожалуйста введите запрос в кавычках",
         }
-    # model = download_llama_model(MODEL_REPO, MODEL_FILE_NAME)
+    model = download_llama_model(MODEL_REPO, MODEL_FILE_NAME)
 
     # set role
+    print("GET DOCS")
     tokens = get_message_tokens(
         model,
         Token.SYSTEM.value,
         "Ты — Сайга, русскоязычный автоматический ассистент. Ты разговариваешь с людьми и помогаешь им.",
     )
+    print("READY get_message_tokens")
     tokens.append(Token.LINEBREAK.value)
 
     # set context and query
@@ -132,10 +126,12 @@ def answer(model, question: str) -> Dict[str, str]:
     message = f"Контекст: {retrieved_docs}\n\nИспользуя контекст, ответь на вопрос: {question}"
     message_tokens = get_message_tokens(model, Token.USER.value, message)
     tokens.extend(message_tokens)
+    print("READY set context and query")
 
     # add role tokens
     role_tokens = [model.token_bos(), Token.BOT.value, Token.LINEBREAK.value]
     tokens.extend(role_tokens)
+    print("READY set context and query")
 
     # summarize
     summary = ""
@@ -144,7 +140,8 @@ def answer(model, question: str) -> Dict[str, str]:
             break
 
         summary += model.detokenize([token]).decode("utf-8", "ignore")
-
+    
+    print("READY summarize")
     # print(f"Вопрос: {sys.argv[1]}\n")
     print(f"Вопрос: {question}\n")
     print(f"Ответ: {summary}\n")

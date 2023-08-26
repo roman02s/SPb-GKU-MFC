@@ -18,6 +18,7 @@ duckdb==0.8.1
 exceptiongroup==1.1.3
 fastapi==0.102.0
 filelock==3.12.2
+fire==0.5.0
 frozenlist==1.4.0
 fsspec==2023.6.0
 greenlet==2.0.2
@@ -68,7 +69,6 @@ pytz==2023.3
 PyYAML==6.0.1
 regex==2023.8.8
 requests==2.31.0
--e git+https://github.com/mpashkovskiy/ru-rag.git@fb9ac5e407f32be238113ff42183455ed45ec239#egg=ru_rag
 safetensors==0.3.3
 scikit-learn==1.3.0
 scipy==1.11.2
@@ -80,6 +80,7 @@ SQLAlchemy==2.0.20
 starlette==0.27.0
 sympy==1.12
 tenacity==8.2.3
+termcolor==2.3.0
 threadpoolctl==3.2.0
 tokenizers==0.13.3
 tomli==2.0.1
