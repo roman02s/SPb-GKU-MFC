@@ -13,7 +13,6 @@ from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
-from langchain.document_loaders import CSVLoader
 
 from ru_rag.custom_csv_loader import CustomCSVLoader
 from ru_rag.token import Token
@@ -37,14 +36,25 @@ def populate_db() -> None:
     global CHROMADB_DIR, EMBEDDINGS_MODEL
 
     # text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
+<<<<<<< HEAD
     raw_docs = []
     # print(text_col_name)
     data_dir = "/data/row"
+=======
+    text_col_name = "text"
+    raw_docs = []
+    data_dir = "../../../data/row/"
+>>>>>>> parent of e6b88ca (fix serve.py)
     for file_name in os.listdir(data_dir):
         if ".csv" not in file_name:
             continue
+
         csv_path = os.path.join(data_dir, file_name)
-        loader = CSVLoader(file_path=csv_path)
+        loader = CustomCSVLoader(
+            csv_path,
+            text_col_name,
+            csv_args={"delimiter": ",", "quoting": csv.QUOTE_NONE},
+        )
         raw_docs.extend(loader.load())
 
     text_splitter = RecursiveCharacterTextSplitter(
