@@ -13,6 +13,7 @@ from langchain.docstore.document import Document
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
+from langchain.document_loaders import CSVLoader
 
 from ru_rag.custom_csv_loader import CustomCSVLoader
 from ru_rag.token import Token
@@ -28,20 +29,15 @@ MODEL_REPO = "IlyaGusev/saiga_13b_lora_llamacpp"
 def populate_db() -> None:
     global CHROMADB_DIR, EMBEDDINGS_MODEL
 
-    # text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
-    text_col_name = "text"
+    text_col_name = "text" if len(sys.argv) == 1 else sys.argv[1]
     raw_docs = []
-    data_dir = "../../../data/row/"
+    print(text_col_name)
+    data_dir = "../../data/row"
     for file_name in os.listdir(data_dir):
         if ".csv" not in file_name:
             continue
-
         csv_path = os.path.join(data_dir, file_name)
-        loader = CustomCSVLoader(
-            csv_path,
-            text_col_name,
-            csv_args={"delimiter": ",", "quoting": csv.QUOTE_NONE},
-        )
+        loader = CSVLoader(file_path=csv_path)
         raw_docs.extend(loader.load())
 
     text_splitter = RecursiveCharacterTextSplitter(
