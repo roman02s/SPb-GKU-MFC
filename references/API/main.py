@@ -16,6 +16,9 @@ from ru_rag.serve import populate_db, find_similar
 from ru_rag.serve import answer
 
 # from ru_rag.utils import download_llama_model
+import os
+from dotenv import load_dotenv, find_dotenv
+
 
 
 # Определяем модель данных для входных параметров
@@ -135,21 +138,33 @@ def predict_find_similar(input_data: InputData):
 def predict_new_find_similar(input_data: InputData):
     # Получаем входные параметры
     client_request = input_data.text
+    try:
+        query_text = f"query: {client_request}"
+        
+        query_batch_dict = tokenizer([query_text], max_length=512, padding=True, truncation=True, return_tensors='pt')
+        query_outputs = model(**query_batch_dict.to(device))
+        query_embedding = average_pool(query_outputs.last_hidden_state, query_batch_dict['attention_mask'])
+        query_embedding = F.normalize(query_embedding, p=2, dim=1)
+        scores = (query_embedding @ passage_embeddings.T) * 100
+        # highest_index = np.argmax(scores[0].cpu().detach().numpy())
 
-    query_text = f"query: {client_request}"
-    
-    query_batch_dict = tokenizer([query_text], max_length=512, padding=True, truncation=True, return_tensors='pt')
-    query_outputs = model(**query_batch_dict.to(device))
-    query_embedding = average_pool(query_outputs.last_hidden_state, query_batch_dict['attention_mask'])
-    query_embedding = F.normalize(query_embedding, p=2, dim=1)
-    scores = (query_embedding @ passage_embeddings.T) * 100
-    highest_index = np.argmax(scores[0].cpu().detach().numpy())
-    
-    answer = ""
-    answer += "Вопрос: " + str(df.iloc[highest_index, 0])
-    answer += "\t\t"
-    answer += "Ответ: " + str(df.iloc[highest_index, 1])
-    answer += "\n\n"
+        scores = scores[0].cpu().detach().numpy()
+        if len(scores) < 4:
+            top_3_results = np.argsort(scores)
+        else:
+            top_3_results = np.argsort(scores)[-4:][::-1]
+
+        
+        answer = ""
+        for i in range(len(top_3_results)):
+            answer += "Вопрос: " + str(df.iloc[top_3_results[i], 0])
+            answer += "\t\t"
+            answer += "Ответ: " + str(df.iloc[top_3_results[i], 1])
+            answer += "\n\n"
+
+    except BaseException as err:
+        print("Error", err)
+        answer = ""
 
     # Возвращаем предсказание в виде объекта OutputData
     return OutputData(prediction=answer)
@@ -224,15 +239,15 @@ SAIGA_tokenizer = AutoTokenizer.from_pretrained(SAIGA_MODEL_NAME, use_fast=False
 SAIGA_config = PeftConfig.from_pretrained(SAIGA_MODEL_NAME)
 SAIGA_model = AutoModelForCausalLM.from_pretrained(
     SAIGA_BASE_MODEL_PATH,
-    load_in_8bit=True,
-    torch_dtype=torch.float16,
-    device_map="from_pretrained",
-    load_in_8bit_fp32_cpu_offload=True,
+    # load_in_8bit=True,
+    torch_dtype=torch.float32,
+    device_map="auto",
+    # load_in_8bit_fp32_cpu_offload=True,
 )
 SAIGA_model = PeftModel.from_pretrained(
     SAIGA_model,
     SAIGA_MODEL_NAME,
-    torch_dtype=torch.float16
+    torch_dtype=torch.float32
 )
 model.eval()
 
@@ -248,21 +263,56 @@ print(generation_config)
 def predict_new_find_similar_saiga(input_data: InputData):
     # Получаем входные параметры
     client_request = input_data.text
+    # try:
+    # ================================================
+    query_text = f"query: {client_request}"  
+    query_batch_dict = tokenizer([query_text], max_length=512, padding=True, truncation=True, return_tensors='pt')
+    query_outputs = model(**query_batch_dict.to(device))
+    query_embedding = average_pool(query_outputs.last_hidden_state, query_batch_dict['attention_mask'])
+    query_embedding = F.normalize(query_embedding, p=2, dim=1)
+    scores = (query_embedding @ passage_embeddings.T) * 100
+    # highest_index = np.argmax(scores[0].cpu().detach().numpy())
 
-    inp = f"Ответь коротко в одно предложение на запрос: {client_request}"
+    scores = scores[0].cpu().detach().numpy()
+    if len(scores) < 4:
+        top_3_results = np.argsort(scores)
+    else:
+        top_3_results = np.argsort(scores)[-4:][::-1]
+    print("INFO: /new_find_similar_saiga: top_3_results", top_3_results)
+# ================================================
+    inp = f"У меня есть вопрос: {client_request}. Также у меня есть ответ: "
+    inp += str(df.iloc[top_3_results[0], 1])
+    # for i in range(len(top_3_results[0])):
+    #     inp += f"{i+1}) "
+    #     inp += str(df.iloc[top_3_results[i], 1])
+    #     if i != len(top_3_results)-1:
+    #         inp += ", "
+    inp += ". \n"
+    inp += "На основе этого ответа коротко ответь на исходный вопрос."
+    # inp = f"Ответь коротко в одно предложение на запрос: {client_request}"
     conversation = Conversation()
     conversation.add_user_message(inp)
     prompt = conversation.get_prompt(SAIGA_tokenizer)
 
     output = generate(SAIGA_model, SAIGA_tokenizer, prompt, generation_config)
-
-
+    print("INFO: /new_find_similar_saiga: output", output)
     answer = ""
     answer += "Вопрос: " + str(client_request)
-    answer += "\t\t"
-    answer += "Ответ: " + str(output)
     answer += "\n\n"
+    answer += "Ответ Cайги: " + str(output)
+    answer += "\n\n"
+    answer += "Топ максимально похожих результатов: "
+    answer += "\n\n"
+    
+    for i in range(len(top_3_results)):
+        answer += "Вопрос: " + str(df.iloc[top_3_results[i], 0])
+        answer += "\t\t"
+        answer += "Ответ: " + str(df.iloc[top_3_results[i], 1])
+        answer += "\n\n"
 
+    # except BaseException as err:
+    #     print("Error in new_find_similar_saiga: ", err)
+    # answer = ""
     # Возвращаем предсказание в виде объекта OutputData
     return OutputData(prediction=answer)
 
@@ -340,3 +390,6 @@ def test_mock(input_data: InputData):
     }
     # Возвращаем предсказание в виде объекта OutputData
     return OutputData(prediction=str(prediction))
+
+
+
